@@ -198,6 +198,9 @@
 <div class="modal-bg" id="settingsModal">
   <div class="modal">
     <h3>SETTINGS</h3>
+    <label>Anthropic API key</label>
+    <input type="text" id="anthropicKeyInput" placeholder="sk-ant-...">
+    <div class="hint">Required for "Generate scenes." Get one at console.anthropic.com → API Keys. Stored only in this browser's local storage — never sent anywhere but Anthropic's API.</div>
     <label>Pexels API key (free)</label>
     <input type="text" id="pexelsKeyInput" placeholder="Paste your Pexels API key">
     <div class="hint">Get a free key at pexels.com/api — used to auto-fetch stock photos per scene. Stored only on this device.</div>
@@ -213,7 +216,8 @@
 let state = {
   script: '',
   scenes: [], // {id, narration, keyword, imageUrl, duration}
-  pexelsKey: ''
+  pexelsKey: '',
+  apiKey: ''
 };
 let activeSceneIndex = -1;
 let isPreviewing = false;
@@ -223,19 +227,17 @@ let recordedChunks = [];
 let previewToken = 0; // increments to cancel in-flight preview loops
 
 // ---------- Persistence ----------
-async function loadState(){
+function loadState(){
   try{
-    const r = await window.storage.get('project:default');
-    if(r && r.value){
-      const saved = JSON.parse(r.value);
-      state.script = saved.script || '';
-      state.scenes = saved.scenes || [];
+    const saved = localStorage.getItem('sceneforge:project');
+    if(saved){
+      const parsed = JSON.parse(saved);
+      state.script = parsed.script || '';
+      state.scenes = parsed.scenes || [];
     }
   }catch(e){ /* no saved project yet */ }
-  try{
-    const r2 = await window.storage.get('settings:pexelsKey');
-    if(r2 && r2.value) state.pexelsKey = r2.value;
-  }catch(e){}
+  try{ state.pexelsKey = localStorage.getItem('sceneforge:pexelsKey') || ''; }catch(e){}
+  try{ state.apiKey = localStorage.getItem('sceneforge:apiKey') || ''; }catch(e){}
   document.getElementById('scriptInput').value = state.script;
   updatePexelsStatus();
   renderScenes();
@@ -243,9 +245,9 @@ async function loadState(){
 let saveTimer = null;
 function scheduleSave(){
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async ()=>{
+  saveTimer = setTimeout(()=>{
     try{
-      await window.storage.set('project:default', JSON.stringify({script: state.script, scenes: state.scenes}));
+      localStorage.setItem('sceneforge:project', JSON.stringify({script: state.script, scenes: state.scenes}));
     }catch(e){ console.error('save failed', e); }
   }, 500);
 }
@@ -258,12 +260,17 @@ function updatePexelsStatus(){
 // ---------- Settings modal ----------
 function openSettings(){
   document.getElementById('pexelsKeyInput').value = state.pexelsKey;
+  document.getElementById('anthropicKeyInput').value = state.apiKey;
   document.getElementById('settingsModal').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('show'); }
-async function saveSettings(){
+function saveSettings(){
   state.pexelsKey = document.getElementById('pexelsKeyInput').value.trim();
-  try{ await window.storage.set('settings:pexelsKey', state.pexelsKey); }catch(e){}
+  state.apiKey = document.getElementById('anthropicKeyInput').value.trim();
+  try{
+    localStorage.setItem('sceneforge:pexelsKey', state.pexelsKey);
+    localStorage.setItem('sceneforge:apiKey', state.apiKey);
+  }catch(e){}
   updatePexelsStatus();
   closeSettings();
 }
@@ -299,10 +306,22 @@ Rules:
 - If given a topic instead of a full script, write the script yourself first, then split it.
 - Narration should sound natural when read aloud, not like bullet points.`;
 
+  if(!state.apiKey){
+    alert('Add your Anthropic API key first: click the ⚙ settings icon, top right.');
+    btn.disabled = false; btn.textContent = 'Generate scenes';
+    openSettings();
+    return;
+  }
+
   try{
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: {
+        "Content-Type":"application/json",
+        "x-api-key": state.apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 1000,
@@ -311,6 +330,10 @@ Rules:
       })
     });
     const data = await response.json();
+    if(!response.ok){
+      const msg = (data && data.error && data.error.message) || `HTTP ${response.status}`;
+      throw new Error(msg);
+    }
     let text = data.content.map(b=>b.text||'').join('').trim();
     text = text.replace(/^```json|^```|```$/gm,'').trim();
     const parsed = JSON.parse(text);
@@ -329,7 +352,7 @@ Rules:
     }
   }catch(e){
     console.error(e);
-    alert('Scene generation failed. Check your connection and try again.');
+    alert('Scene generation failed: ' + e.message);
   }finally{
     btn.disabled = false; btn.textContent = 'Generate scenes';
   }
@@ -561,7 +584,7 @@ async function startExport(){
   if(state.scenes.length===0){ alert('Generate scenes first.'); return; }
   if(isExporting) return;
   if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
-    alert('Your browser doesn\\'t support tab recording. Try Chrome or Edge on desktop.');
+    alert("Your browser doesn't support tab recording. Try Chrome or Edge on desktop.");
     return;
   }
   try{
