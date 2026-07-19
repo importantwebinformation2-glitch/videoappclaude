@@ -188,7 +188,7 @@
       <button class="btn-export" id="exportBtn" onclick="startExport()">⤓ Export video</button>
     </div>
     <div class="hint" id="exportHint" style="margin-top:10px;">
-      Export records this browser tab (video + narration audio) into a downloadable file. When prompted, choose <b>"This Tab"</b> and keep the tab visible — recording stops automatically when the last scene ends.
+      On desktop Chrome/Edge: pick <b>"This Tab"</b> when prompted to record video + narration together. On mobile, this exports a silent video (browsers can't capture tab audio) — use your phone's screen recorder for a version with sound.
     </div>
   </div>
 
@@ -571,38 +571,57 @@ function togglePreview(){
   }
 }
 
-// ---------- Export via tab capture ----------
+// ---------- Export ----------
 async function startExport(){
   if(state.scenes.length===0){ alert('Generate scenes first.'); return; }
   if(isExporting) return;
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
-    alert("Your browser doesn't support tab recording. Try Chrome or Edge on desktop.");
-    return;
-  }
-  try{
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: 'browser' },
-      audio: true,
-      preferCurrentTab: true
-    });
-    isExporting = true;
-    document.getElementById('recDot').classList.add('on');
-    document.getElementById('exportHint').textContent = 'Recording… stay on this tab. It will stop and download automatically when the last scene finishes.';
-    recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
-    mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, {type:'video/webm'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'sceneforge-video.webm';
-      a.click();
+
+  const hasTabCapture = navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia;
+
+  if(hasTabCapture){
+    // Desktop path: records this tab, video + narration audio together
+    try{
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser' },
+        audio: true,
+        preferCurrentTab: true
+      });
+      isExporting = true;
+      document.getElementById('recDot').classList.add('on');
+      document.getElementById('exportHint').textContent = 'Recording… stay on this tab. It will stop and download automatically when the last scene finishes.';
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
+      mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        finishExport('sceneforge-video.webm');
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      stream.getVideoTracks()[0].onended = () => { if(mediaRecorder.state !== 'inactive') mediaRecorder.stop(); };
+      mediaRecorder.start();
+      const token = ++previewToken;
+      await playScenes(token);
+      if(mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    }catch(e){
+      console.error(e);
       isExporting = false;
       document.getElementById('recDot').classList.remove('on');
-      document.getElementById('exportHint').textContent = 'Export records this browser tab (video + narration audio) into a downloadable file. When prompted, choose "This Tab" and keep the tab visible — recording stops automatically when the last scene ends.';
-      stream.getTracks().forEach(t=>t.stop());
-    };
-    stream.getVideoTracks()[0].onended = () => { if(mediaRecorder.state !== 'inactive') mediaRecorder.stop(); };
+      if(e.name !== 'NotAllowedError'){
+        alert('Export failed to start: ' + e.message);
+      }
+    }
+    return;
+  }
+
+  // Mobile / unsupported-browser path: record the canvas only (silent video, no audio track)
+  try{
+    isExporting = true;
+    document.getElementById('recDot').classList.add('on');
+    document.getElementById('exportHint').textContent = 'Recording video track… narration will play out loud but is not captured — see the note below for adding audio.';
+    const stream = canvas.captureStream(30);
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+    mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => finishExport('sceneforge-video-silent.webm');
     mediaRecorder.start();
     const token = ++previewToken;
     await playScenes(token);
@@ -611,10 +630,19 @@ async function startExport(){
     console.error(e);
     isExporting = false;
     document.getElementById('recDot').classList.remove('on');
-    if(e.name !== 'NotAllowedError'){
-      alert('Export failed to start: ' + e.message);
-    }
+    alert('Export failed to start: ' + e.message);
   }
+}
+
+function finishExport(filename){
+  const blob = new Blob(recordedChunks, {type:'video/webm'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  a.click();
+  isExporting = false;
+  document.getElementById('recDot').classList.remove('on');
+  document.getElementById('exportHint').innerHTML = 'Export records this browser tab (video + narration audio) into a downloadable file on desktop Chrome/Edge. On mobile, it exports a silent video track instead — for narration included, use your phone\'s built-in <b>screen recorder</b> (swipe down → Screen Recorder) while tapping Preview, which captures both picture and sound at the OS level.';
 }
 
 // ---------- Init ----------
