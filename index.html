@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SceneForge — Script to Video</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15181b;
+    --panel:#1d2226;
+    --panel-2:#242a2f;
+    --rail:#2c3339;
+    --amber:#e3a857;
+    --amber-dim:#8a6a3c;
+    --teal:#3e7c7c;
+    --text:#edeae4;
+    --muted:#8a8f94;
+    --danger:#c0654f;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;height:100vh;overflow:hidden;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;border-bottom:1px solid var(--rail);background:var(--panel);
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .mark{width:26px;height:26px;border-radius:50%;border:3px solid var(--amber);position:relative;flex:none;}
+  .brand .mark::after{content:'';position:absolute;inset:6px;border-radius:50%;background:var(--amber);}
+  h1{font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;font-size:26px;margin:0;font-weight:400;}
+  .tagline{color:var(--muted);font-size:12px;margin-left:10px;padding-left:10px;border-left:1px solid var(--rail);}
+  .iconbtn{background:none;border:1px solid var(--rail);color:var(--text);width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:15px;}
+  .iconbtn:hover{border-color:var(--amber);color:var(--amber);}
+
+  .layout{display:grid;grid-template-columns:320px 1fr 380px;height:calc(100vh - 61px);}
+  .panel{padding:18px;overflow-y:auto;}
+  .panel + .panel{border-left:1px solid var(--rail);}
+
+  label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 6px;}
+  label:first-child{margin-top:0;}
+  textarea, input[type=text], input[type=number], select{
+    width:100%;background:var(--panel-2);border:1px solid var(--rail);color:var(--text);
+    border-radius:6px;padding:9px 10px;font-family:inherit;font-size:13.5px;
+  }
+  textarea{min-height:130px;resize:vertical;line-height:1.5;}
+  textarea:focus, input:focus, select:focus{outline:none;border-color:var(--amber);}
+
+  button.primary{
+    width:100%;margin-top:14px;background:var(--amber);color:#1a1a1a;border:none;
+    padding:11px;border-radius:6px;font-weight:700;font-size:13.5px;cursor:pointer;letter-spacing:.02em;
+  }
+  button.primary:hover{background:#eeb96c;}
+  button.primary:disabled{background:var(--amber-dim);cursor:wait;color:#3a3428;}
+  button.secondary{
+    background:transparent;border:1px solid var(--rail);color:var(--text);
+    padding:8px 10px;border-radius:6px;font-size:12.5px;cursor:pointer;
+  }
+  button.secondary:hover{border-color:var(--teal);color:#8fc5c5;}
+  button.link{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;text-decoration:underline;padding:0;}
+  .row{display:flex;gap:8px;}
+  .row > *{flex:1;}
+
+  .hint{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+  /* Filmstrip scene list */
+  .filmstrip-wrap{position:relative;padding-left:18px;}
+  .rail-line{position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--rail);}
+  .scene-card{
+    position:relative;background:var(--panel-2);border:1px solid var(--rail);border-radius:8px;
+    padding:12px;margin-bottom:12px;
+  }
+  .scene-card.active{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber);}
+  .sprocket{
+    position:absolute;left:-18px;top:14px;width:9px;height:9px;border-radius:50%;
+    background:var(--rail);border:2px solid var(--bg);
+  }
+  .scene-card.active .sprocket{background:var(--amber);}
+  .scene-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .scene-num{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--amber);letter-spacing:1px;}
+  .scene-tc{font-size:11px;color:var(--muted);}
+  .scene-thumb{width:100%;height:90px;object-fit:cover;border-radius:5px;background:#000;margin-bottom:8px;border:1px solid var(--rail);}
+  .scene-thumb.empty{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;}
+  textarea.narration{min-height:56px;font-size:13px;}
+  .scene-controls{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .scene-controls button{flex:1;min-width:70px;font-size:11px;padding:6px 8px;}
+  .kw-row{display:flex;gap:6px;margin-top:8px;}
+  .kw-row input{flex:1;font-size:12px;}
+
+  .empty-state{color:var(--muted);font-size:13px;text-align:center;padding:40px 10px;border:1px dashed var(--rail);border-radius:8px;}
+
+  /* Preview / monitor */
+  .monitor-shell{background:#000;border:8px solid var(--panel-2);border-radius:10px;position:relative;aspect-ratio:16/9;overflow:hidden;box-shadow:0 0 0 1px var(--rail);}
+  canvas{width:100%;height:100%;display:block;}
+  .rec-dot{position:absolute;top:10px;left:12px;display:flex;align-items:center;gap:6px;font-size:11px;color:#ff6b5e;font-family:'JetBrains Mono',monospace;display:none;}
+  .rec-dot.on{display:flex;}
+  .rec-dot .dot{width:8px;height:8px;border-radius:50%;background:#ff6b5e;animation:pulse 1s infinite;}
+  @keyframes pulse{50%{opacity:.2;}}
+  .timecode{position:absolute;bottom:8px;right:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#ddd;background:rgba(0,0,0,.5);padding:2px 6px;border-radius:3px;}
+
+  .transport{display:flex;gap:8px;margin-top:14px;}
+  .transport button{flex:1;padding:12px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-play{background:var(--teal);border:none;color:#e6f5f5;}
+  .btn-export{background:var(--amber);border:none;color:#1a1a1a;}
+  .btn-stop{background:var(--danger);border:none;color:#fff;}
+
+  .voice-settings{margin-top:18px;border-top:1px solid var(--rail);padding-top:14px;}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50;}
+  .modal-bg.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--rail);border-radius:10px;padding:22px;width:380px;}
+  .modal h3{margin:0 0 4px;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;font-weight:400;}
+  .modal-close{display:flex;justify-content:flex-end;margin-top:16px;}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--rail);border-radius:4px;}
+
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr;height:auto;overflow:auto;}
+    body{overflow:auto;}
+    .panel + .panel{border-left:none;border-top:1px solid var(--rail);}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark"></div>
+    <h1>SCENEFORGE</h1>
+    <span class="tagline">script → scenes → video</span>
+  </div>
+  <button class="iconbtn" onclick="openSettings()" title="Settings">⚙</button>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT: script + generation -->
+  <div class="panel">
+    <label>Your script or topic</label>
+    <textarea id="scriptInput" placeholder="Paste a full script, or just describe a topic — e.g. 'Why the iPhone 16 camera is worth the upgrade' — and I'll write and split it into scenes."></textarea>
+    <div class="row">
+      <button class="primary" id="genBtn" onclick="generateScenes()">Generate scenes</button>
+    </div>
+    <div class="hint">Uses the Claude API to break your script into narrated scenes with a visual search term for each.</div>
+
+    <div class="voice-settings">
+      <label>Voiceover</label>
+      <select id="voiceSelect"></select>
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <label style="margin-top:0;">Rate</label>
+          <input type="number" id="rateInput" value="1" step="0.1" min="0.5" max="2">
+        </div>
+        <div>
+          <label style="margin-top:0;">Pitch</label>
+          <input type="number" id="pitchInput" value="1" step="0.1" min="0" max="2">
+        </div>
+      </div>
+      <div class="hint">Voices come from your browser. Chrome/Edge on desktop have the widest, most natural selection.</div>
+    </div>
+
+    <div class="voice-settings">
+      <label>Stock photos (optional)</label>
+      <button class="secondary" style="width:100%;" onclick="openSettings()">Set Pexels API key</button>
+      <div class="hint" id="pexelsStatus">Not set — you can still upload your own images per scene.</div>
+    </div>
+  </div>
+
+  <!-- MIDDLE: filmstrip scene list -->
+  <div class="panel" id="sceneListPanel">
+    <div class="filmstrip-wrap">
+      <div class="rail-line"></div>
+      <div id="sceneList"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: monitor -->
+  <div class="panel">
+    <div class="monitor-shell">
+      <canvas id="canvas" width="1280" height="720"></canvas>
+      <div class="rec-dot" id="recDot"><div class="dot"></div>REC</div>
+      <div class="timecode" id="timecode">00:00:00:00</div>
+    </div>
+    <div class="transport">
+      <button class="btn-play" id="playBtn" onclick="togglePreview()">▶ Preview</button>
+      <button class="btn-export" id="exportBtn" onclick="startExport()">⤓ Export video</button>
+    </div>
+    <div class="hint" id="exportHint" style="margin-top:10px;">
+      Export records this browser tab (video + narration audio) into a downloadable file. When prompted, choose <b>"This Tab"</b> and keep the tab visible — recording stops automatically when the last scene ends.
+    </div>
+  </div>
+
+</div>
+
+<!-- Settings modal -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h3>SETTINGS</h3>
+    <label>Pexels API key (free)</label>
+    <input type="text" id="pexelsKeyInput" placeholder="Paste your Pexels API key">
+    <div class="hint">Get a free key at pexels.com/api — used to auto-fetch stock photos per scene. Stored only on this device.</div>
+    <div class="modal-close">
+      <button class="secondary" onclick="closeSettings()">Cancel</button>
+      <button class="primary" style="width:auto;margin-top:0;margin-left:8px;" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- State ----------
+let state = {
+  script: '',
+  scenes: [], // {id, narration, keyword, imageUrl, duration}
+  pexelsKey: ''
+};
+let activeSceneIndex = -1;
+let isPreviewing = false;
+let isExporting = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+let previewToken = 0; // increments to cancel in-flight preview loops
+
+// ---------- Persistence ----------
+async function loadState(){
+  try{
+    const r = await window.storage.get('project:default');
+    if(r && r.value){
+      const saved = JSON.parse(r.value);
+      state.script = saved.script || '';
+      state.scenes = saved.scenes || [];
+    }
+  }catch(e){ /* no saved project yet */ }
+  try{
+    const r2 = await window.storage.get('settings:pexelsKey');
+    if(r2 && r2.value) state.pexelsKey = r2.value;
+  }catch(e){}
+  document.getElementById('scriptInput').value = state.script;
+  updatePexelsStatus();
+  renderScenes();
+}
+let saveTimer = null;
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      await window.storage.set('project:default', JSON.stringify({script: state.script, scenes: state.scenes}));
+    }catch(e){ console.error('save failed', e); }
+  }, 500);
+}
+function updatePexelsStatus(){
+  document.getElementById('pexelsStatus').textContent = state.pexelsKey
+    ? 'Connected — scenes will auto-fetch stock photos.'
+    : 'Not set — you can still upload your own images per scene.';
+}
+
+// ---------- Settings modal ----------
+function openSettings(){
+  document.getElementById('pexelsKeyInput').value = state.pexelsKey;
+  document.getElementById('settingsModal').classList.add('show');
+}
+function closeSettings(){ document.getElementById('settingsModal').classList.remove('show'); }
+async function saveSettings(){
+  state.pexelsKey = document.getElementById('pexelsKeyInput').value.trim();
+  try{ await window.storage.set('settings:pexelsKey', state.pexelsKey); }catch(e){}
+  updatePexelsStatus();
+  closeSettings();
+}
+
+// ---------- Voices ----------
+function populateVoices(){
+  const sel = document.getElementById('voiceSelect');
+  const voices = speechSynthesis.getVoices();
+  sel.innerHTML = '';
+  voices.forEach((v,i)=>{
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${v.name} (${v.lang})`;
+    sel.appendChild(opt);
+  });
+}
+speechSynthesis.onvoiceschanged = populateVoices;
+populateVoices();
+
+// ---------- AI scene generation ----------
+async function generateScenes(){
+  const script = document.getElementById('scriptInput').value.trim();
+  if(!script){ alert('Write or paste a script/topic first.'); return; }
+  state.script = script;
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true; btn.textContent = 'Writing scenes…';
+
+  const sys = `You write short-form video scripts. Given the user's script or topic, produce a JSON array of scenes for a narrated slideshow video.
+Rules:
+- Return ONLY a raw JSON array. No markdown, no code fences, no commentary.
+- 4 to 10 scenes depending on content length.
+- Each element: {"narration": "1-2 natural spoken sentences", "keyword": "2-4 word visual search term for a stock photo"}
+- If given a topic instead of a full script, write the script yourself first, then split it.
+- Narration should sound natural when read aloud, not like bullet points.`;
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        system: sys,
+        messages: [{role:"user", content: script}]
+      })
+    });
+    const data = await response.json();
+    let text = data.content.map(b=>b.text||'').join('').trim();
+    text = text.replace(/^```json|^```|```$/gm,'').trim();
+    const parsed = JSON.parse(text);
+    state.scenes = parsed.map((s,i)=>({
+      id: 'sc_'+Date.now()+'_'+i,
+      narration: s.narration,
+      keyword: s.keyword,
+      imageUrl: null,
+      duration: estimateDuration(s.narration)
+    }));
+    renderScenes();
+    scheduleSave();
+    // fire off stock fetches if key present
+    if(state.pexelsKey){
+      state.scenes.forEach((s,i)=> fetchStockImage(i));
+    }
+  }catch(e){
+    console.error(e);
+    alert('Scene generation failed. Check your connection and try again.');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Generate scenes';
+  }
+}
+
+function estimateDuration(narration){
+  const words = narration.trim().split(/\s+/).length;
+  return Math.max(3, Math.round((words / 2.3) + 1.2)); // ~140wpm + pause buffer
+}
+
+// ---------- Stock images ----------
+async function fetchStockImage(index){
+  const scene = state.scenes[index];
+  if(!scene || !state.pexelsKey) return;
+  const thumb = document.getElementById('thumb_'+scene.id);
+  if(thumb) thumb.classList.add('empty'), thumb.textContent = 'Loading…';
+  try{
+    const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(scene.keyword)}&per_page=1&orientation=landscape`, {
+      headers: { Authorization: state.pexelsKey }
+    });
+    const data = await res.json();
+    const photo = data.photos && data.photos[0];
+    if(photo){
+      scene.imageUrl = photo.src.large2x || photo.src.large;
+      renderScenes();
+      scheduleSave();
+    }
+  }catch(e){
+    console.error('pexels fetch failed', e);
+  }
+}
+
+function uploadImage(index, file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.scenes[index].imageUrl = reader.result;
+    renderScenes();
+    scheduleSave();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ---------- Scene list rendering ----------
+function renderScenes(){
+  const list = document.getElementById('sceneList');
+  if(state.scenes.length === 0){
+    list.innerHTML = `<div class="empty-state">No scenes yet.<br>Write a script on the left and hit Generate.</div>`;
+    return;
+  }
+  list.innerHTML = state.scenes.map((s,i)=>{
+    let cum = 0;
+    for(let j=0;j<i;j++) cum += state.scenes[j].duration;
+    return `
+    <div class="scene-card ${i===activeSceneIndex?'active':''}" id="card_${s.id}">
+      <div class="sprocket"></div>
+      <div class="scene-head">
+        <span class="scene-num">${String(i+1).padStart(2,'0')}</span>
+        <span class="scene-tc mono">${formatTC(cum)} · ${s.duration}s</span>
+      </div>
+      ${s.imageUrl
+        ? `<img class="scene-thumb" id="thumb_${s.id}" src="${s.imageUrl}">`
+        : `<div class="scene-thumb empty" id="thumb_${s.id}">No image</div>`}
+      <textarea class="narration" oninput="updateNarration(${i}, this.value)">${s.narration}</textarea>
+      <div class="kw-row">
+        <input type="text" value="${s.keyword||''}" placeholder="visual keyword" onchange="updateKeyword(${i}, this.value)">
+        <button class="secondary" onclick="fetchStockImage(${i})">Fetch</button>
+      </div>
+      <div class="scene-controls">
+        <button class="secondary" onclick="document.getElementById('file_${s.id}').click()">Upload</button>
+        <input type="file" id="file_${s.id}" accept="image/*" style="display:none" onchange="uploadImage(${i}, this.files[0])">
+        <button class="secondary" onclick="moveScene(${i},-1)">↑</button>
+        <button class="secondary" onclick="moveScene(${i},1)">↓</button>
+        <button class="secondary" onclick="deleteScene(${i})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function formatTC(seconds){
+  const m = Math.floor(seconds/60).toString().padStart(2,'0');
+  const s = Math.floor(seconds%60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+function updateNarration(i, val){ state.scenes[i].narration = val; state.scenes[i].duration = estimateDuration(val); scheduleSave(); }
+function updateKeyword(i, val){ state.scenes[i].keyword = val; scheduleSave(); }
+function moveScene(i, dir){
+  const j = i+dir;
+  if(j<0 || j>=state.scenes.length) return;
+  [state.scenes[i], state.scenes[j]] = [state.scenes[j], state.scenes[i]];
+  renderScenes(); scheduleSave();
+}
+function deleteScene(i){
+  state.scenes.splice(i,1);
+  renderScenes(); scheduleSave();
+}
+
+// ---------- Canvas rendering (Ken Burns + captions) ----------
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const imageCache = {};
+
+function loadImg(url){
+  return new Promise((resolve)=>{
+    if(imageCache[url]) return resolve(imageCache[url]);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = ()=>{ imageCache[url]=img; resolve(img); };
+    img.onerror = ()=> resolve(null);
+    img.src = url;
+  });
+}
+
+function drawFrame(img, progress, sceneIndex, narration){
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,W,H);
+  if(img){
+    const zoomStart = 1.0, zoomEnd = 1.12;
+    const zoom = zoomStart + (zoomEnd-zoomStart)*progress;
+    const panDir = sceneIndex % 2 === 0 ? 1 : -1;
+    const iw = img.width, ih = img.height;
+    const scale = Math.max(W/iw, H/ih) * zoom;
+    const dw = iw*scale, dh = ih*scale;
+    const maxOffsetX = (dw-W)/2;
+    const dx = -dw/2 + W/2 + panDir * maxOffsetX * (progress-0.5) * 0.6;
+    const dy = -dh/2 + H/2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  } else {
+    ctx.fillStyle = '#242a2f';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#8a8f94';
+    ctx.font = '28px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('No image for this scene', W/2, H/2);
+  }
+  // caption bar
+  if(narration){
+    const lines = wrapText(narration, 46);
+    const lineH = 40;
+    const barH = lines.length*lineH + 40;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, H-barH, W, barH);
+    ctx.fillStyle = '#f2efe8';
+    ctx.font = '600 30px Inter';
+    ctx.textAlign = 'center';
+    lines.forEach((line,i)=>{
+      ctx.fillText(line, W/2, H-barH+40+i*lineH);
+    });
+  }
+}
+function wrapText(text, maxChars){
+  const words = text.split(' ');
+  const lines = []; let cur = '';
+  words.forEach(w=>{
+    if((cur+' '+w).trim().length > maxChars){ lines.push(cur.trim()); cur = w; }
+    else cur += ' '+w;
+  });
+  if(cur.trim()) lines.push(cur.trim());
+  return lines;
+}
+
+// ---------- Playback engine (shared by preview + export) ----------
+function speak(text){
+  return new Promise((resolve)=>{
+    const utter = new SpeechSynthesisUtterance(text);
+    const voices = speechSynthesis.getVoices();
+    const sel = document.getElementById('voiceSelect').value;
+    if(voices[sel]) utter.voice = voices[sel];
+    utter.rate = parseFloat(document.getElementById('rateInput').value) || 1;
+    utter.pitch = parseFloat(document.getElementById('pitchInput').value) || 1;
+    utter.onend = resolve;
+    utter.onerror = resolve;
+    speechSynthesis.speak(utter);
+  });
+}
+
+async function playScenes(token){
+  let elapsed = 0;
+  for(let i=0;i<state.scenes.length;i++){
+    if(token !== previewToken) return; // cancelled
+    activeSceneIndex = i;
+    renderScenes();
+    const scene = state.scenes[i];
+    const img = scene.imageUrl ? await loadImg(scene.imageUrl) : null;
+    const duration = scene.duration;
+    const start = performance.now();
+    speak(scene.narration); // fire and forget, timed by duration below
+    await new Promise(res=>{
+      function frame(now){
+        if(token !== previewToken) return res();
+        const p = Math.min(1, (now-start)/1000/duration);
+        drawFrame(img, p, i, scene.narration);
+        document.getElementById('timecode').textContent = formatFullTC(elapsed + p*duration);
+        if(p<1) requestAnimationFrame(frame); else res();
+      }
+      requestAnimationFrame(frame);
+    });
+    elapsed += duration;
+  }
+  activeSceneIndex = -1;
+  renderScenes();
+}
+function formatFullTC(seconds){
+  const m = Math.floor(seconds/60).toString().padStart(2,'0');
+  const s = Math.floor(seconds%60).toString().padStart(2,'0');
+  const f = Math.floor((seconds%1)*24).toString().padStart(2,'0');
+  return `00:${m}:${s}:${f}`;
+}
+
+function togglePreview(){
+  if(state.scenes.length===0){ alert('Generate scenes first.'); return; }
+  if(isPreviewing){
+    previewToken++; // cancel
+    speechSynthesis.cancel();
+    isPreviewing = false;
+    document.getElementById('playBtn').textContent = '▶ Preview';
+  }else{
+    isPreviewing = true;
+    document.getElementById('playBtn').textContent = '⏸ Stop';
+    const token = ++previewToken;
+    playScenes(token).then(()=>{
+      isPreviewing = false;
+      document.getElementById('playBtn').textContent = '▶ Preview';
+    });
+  }
+}
+
+// ---------- Export via tab capture ----------
+async function startExport(){
+  if(state.scenes.length===0){ alert('Generate scenes first.'); return; }
+  if(isExporting) return;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
+    alert('Your browser doesn\\'t support tab recording. Try Chrome or Edge on desktop.');
+    return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: 'browser' },
+      audio: true,
+      preferCurrentTab: true
+    });
+    isExporting = true;
+    document.getElementById('recDot').classList.add('on');
+    document.getElementById('exportHint').textContent = 'Recording… stay on this tab. It will stop and download automatically when the last scene finishes.';
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
+    mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, {type:'video/webm'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'sceneforge-video.webm';
+      a.click();
+      isExporting = false;
+      document.getElementById('recDot').classList.remove('on');
+      document.getElementById('exportHint').textContent = 'Export records this browser tab (video + narration audio) into a downloadable file. When prompted, choose "This Tab" and keep the tab visible — recording stops automatically when the last scene ends.';
+      stream.getTracks().forEach(t=>t.stop());
+    };
+    stream.getVideoTracks()[0].onended = () => { if(mediaRecorder.state !== 'inactive') mediaRecorder.stop(); };
+    mediaRecorder.start();
+    const token = ++previewToken;
+    await playScenes(token);
+    if(mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }catch(e){
+    console.error(e);
+    isExporting = false;
+    document.getElementById('recDot').classList.remove('on');
+    if(e.name !== 'NotAllowedError'){
+      alert('Export failed to start: ' + e.message);
+    }
+  }
+}
+
+// ---------- Init ----------
+drawFrame(null, 0, 0, 'Your first scene will appear here');
+loadState();
+</script>
+</body>
+</html>
